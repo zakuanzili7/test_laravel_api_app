@@ -88,104 +88,6 @@ class BillingController extends Controller
         return response()->json($billing); // Return the billing record
     }
 
-    public function createBillingForCollection(Request $request, $collectionCode)
-    {
-        // Check if the collection exists
-        $collection = Collection::where('code', $collectionCode)->first();
-
-        if (!$collection) {
-            Log::error('Collection Not Found: ', ['collection_code' => $collectionCode]);
-            return response()->json(['message' => 'Collection not found'], 404);
-        }
-
-        // Validate the billing data
-        $request->validate([
-            'code' => 'required|string|size:18|unique:billings,code',
-            'status' => 'required|string',
-            'amount' => 'required|numeric',
-            'payment_description' => 'nullable|string',
-            'payment_description2' => 'nullable|string',
-            'due_date' => 'required|date',
-            'payer_name' => 'required|string',
-            'payer_email' => 'required|email',
-            'payer_phone' => 'required|string',
-            'payment_method' => 'required|string|in:OBW,MPGS,QR Pay',
-            'device_token' => 'required|string',  // Add device token to request
-        ]);
-
-        // Create the billing record
-        $billing = Billing::create([
-            'code' => $request->input('code'),
-            'belong_to_collection' => $collectionCode,
-            'status' => $request->input('status'),
-            'amount' => $request->input('amount'),
-            'payment_description' => $request->input('payment_description'),
-            'payment_description2' => $request->input('payment_description2'),
-            'due_date' => $request->input('due_date'),
-            'payer_name' => $request->input('payer_name'),
-            'payer_email' => $request->input('payer_email'),
-            'payer_phone' => $request->input('payer_phone'),
-            'payment_method' => $request->input('payment_method'),
-        ]);
-
-        // Log the billing creation
-        Log::info('Billing Created for Collection: ', ['code' => $billing->code, 'collection_code' => $collectionCode]);
-
-        // FCM notification logic
-        $deviceToken = $request->input('device_token'); // Retrieve device token from request
-        $accessToken = $this->getAccessToken(); // Get OAuth2 access token
-
-        $notificationData = [
-            'message' => [
-                'token' => $deviceToken,
-                'notification' => [
-                    'title' => 'NEW TRANSACTION!',
-                    'body' => 'You have received ' . $billing->amount . ' from ' . $billing->payer_name . '.',
-                ],
-                'data' => [
-                    'billingCode' => $billing->code,
-                ],
-            ],
-        ];
-
-        $response = Http::withHeaders([
-            'Authorization' => 'Bearer ' . $accessToken,
-            'Content-Type' => 'application/json',
-        ])->post('https://fcm.googleapis.com/v1/projects/nexgen-client-app/messages:send', $notificationData);
-
-        if ($response->successful()) {
-            Log::info('Notification sent successfully for Billing Code: ' . $billing->code);
-        } else {
-            Log::error('Failed to send notification: ' . $response->body());
-        }
-
-        return response()->json($billing, 201);
-    }
-
-    // Create a new billing record
-    // public function store(Request $request)
-    // {
-    //     $request->validate([
-    //         'code' => 'required|string|size:18|unique:billings,code',
-    //         'belong_to_collection' => 'required|string',
-    //         'status' => 'required|string',
-    //         'amount' => 'required|numeric',
-    //         'payment_description' => 'nullable|string',
-    //         'payment_description2' => 'nullable|string',
-    //         'due_date' => 'required|date',
-    //         'payer_name' => 'required|string',
-    //         'payer_email' => 'required|email',
-    //         'payer_phone' => 'required|string',
-    //         'payment_method' => 'required|string|in:OBW,MPGS,QR Pay',
-    //     ]);
-
-    //     $billing = Billing::create($request->all());  // Create a new billing record
-    //     Log::info('Billing Created: ', ['code' => $billing->code]);
-
-    //     return response()->json($billing, 201);  // Return the created billing as JSON
-    // }
-
-    // // Create a new billing record associated with a specific collection
     // public function createBillingForCollection(Request $request, $collectionCode)
     // {
     //     // Check if the collection exists
@@ -208,12 +110,13 @@ class BillingController extends Controller
     //         'payer_email' => 'required|email',
     //         'payer_phone' => 'required|string',
     //         'payment_method' => 'required|string|in:OBW,MPGS,QR Pay',
+    //         'device_token' => 'required|string',  // Add device token to request
     //     ]);
 
-    //     // Create the billing record with the collection's code
+    //     // Create the billing record
     //     $billing = Billing::create([
     //         'code' => $request->input('code'),
-    //         'belong_to_collection' => $collectionCode,  // Associate with the collection
+    //         'belong_to_collection' => $collectionCode,
     //         'status' => $request->input('status'),
     //         'amount' => $request->input('amount'),
     //         'payment_description' => $request->input('payment_description'),
@@ -225,10 +128,107 @@ class BillingController extends Controller
     //         'payment_method' => $request->input('payment_method'),
     //     ]);
 
+    //     // Log the billing creation
     //     Log::info('Billing Created for Collection: ', ['code' => $billing->code, 'collection_code' => $collectionCode]);
 
-    //     return response()->json($billing, 201); // Return the created billing as JSON
+    //     // FCM notification logic
+    //     $deviceToken = $request->input('device_token'); // Retrieve device token from request
+    //     $accessToken = $this->getAccessToken(); // Get OAuth2 access token
+
+    //     $notificationData = [
+    //         'message' => [
+    //             'token' => $deviceToken,
+    //             'notification' => [
+    //                 'title' => 'NEW TRANSACTION!',
+    //                 'body' => 'You have received ' . $billing->amount . ' from ' . $billing->payer_name . '.',
+    //             ],
+    //             'data' => [
+    //                 'billingCode' => $billing->code,
+    //             ],
+    //         ],
+    //     ];
+
+    //     $response = Http::withHeaders([
+    //         'Authorization' => 'Bearer ' . $accessToken,
+    //         'Content-Type' => 'application/json',
+    //     ])->post('https://fcm.googleapis.com/v1/projects/nexgen-client-app/messages:send', $notificationData);
+
+    //     if ($response->successful()) {
+    //         Log::info('Notification sent successfully for Billing Code: ' . $billing->code);
+    //     } else {
+    //         Log::error('Failed to send notification: ' . $response->body());
+    //     }
+
+    //     return response()->json($billing, 201);
     // }
+
+    // Create a new billing record
+    public function store(Request $request)
+    {
+        $request->validate([
+            'code' => 'required|string|size:18|unique:billings,code',
+            'belong_to_collection' => 'required|string',
+            'status' => 'required|string',
+            'amount' => 'required|numeric',
+            'payment_description' => 'nullable|string',
+            'payment_description2' => 'nullable|string',
+            'due_date' => 'required|date',
+            'payer_name' => 'required|string',
+            'payer_email' => 'required|email',
+            'payer_phone' => 'required|string',
+            'payment_method' => 'required|string|in:OBW,MPGS,QR Pay',
+        ]);
+
+        $billing = Billing::create($request->all());  // Create a new billing record
+        Log::info('Billing Created: ', ['code' => $billing->code]);
+
+        return response()->json($billing, 201);  // Return the created billing as JSON
+    }
+
+    // Create a new billing record associated with a specific collection
+    public function createBillingForCollection(Request $request, $collectionCode)
+    {
+        // Check if the collection exists
+        $collection = Collection::where('code', $collectionCode)->first();
+
+        if (!$collection) {
+            Log::error('Collection Not Found: ', ['collection_code' => $collectionCode]);
+            return response()->json(['message' => 'Collection not found'], 404);
+        }
+
+        // Validate the billing data
+        $request->validate([
+            'code' => 'required|string|size:18|unique:billings,code',
+            'status' => 'required|string',
+            'amount' => 'required|numeric',
+            'payment_description' => 'nullable|string',
+            'payment_description2' => 'nullable|string',
+            'due_date' => 'required|date',
+            'payer_name' => 'required|string',
+            'payer_email' => 'required|email',
+            'payer_phone' => 'required|string',
+            'payment_method' => 'required|string|in:OBW,MPGS,QR Pay',
+        ]);
+
+        // Create the billing record with the collection's code
+        $billing = Billing::create([
+            'code' => $request->input('code'),
+            'belong_to_collection' => $collectionCode,  // Associate with the collection
+            'status' => $request->input('status'),
+            'amount' => $request->input('amount'),
+            'payment_description' => $request->input('payment_description'),
+            'payment_description2' => $request->input('payment_description2'),
+            'due_date' => $request->input('due_date'),
+            'payer_name' => $request->input('payer_name'),
+            'payer_email' => $request->input('payer_email'),
+            'payer_phone' => $request->input('payer_phone'),
+            'payment_method' => $request->input('payment_method'),
+        ]);
+
+        Log::info('Billing Created for Collection: ', ['code' => $billing->code, 'collection_code' => $collectionCode]);
+
+        return response()->json($billing, 201); // Return the created billing as JSON
+    }
 
     // Update an existing billing record
     public function update(Request $request, $code)
